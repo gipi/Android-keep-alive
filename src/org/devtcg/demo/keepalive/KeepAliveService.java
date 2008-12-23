@@ -10,6 +10,7 @@ import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Date;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
@@ -28,14 +29,18 @@ public class KeepAliveService extends Service
 	public static final String TAG = "KeepAliveService";
 
 	private static final String HOST = "jasta.dyndns.org";
-	private static final int PORT = 5545;
-	
+	private static final int PORT = 50000;
+
+	private static final String ACTION_START = "org.devtcg.demo.keepalive.START";
+	private static final String ACTION_STOP = "org.devtcg.demo.keepalive.STOP";
 	private static final String ACTION_KEEPALIVE = "org.devtcg.demo.keepalive.KEEP_ALIVE";
 
 	private ConnectionThread mConnection;
 	
+	private static final long KEEP_ALIVE_INTERVAL = 1000 * 60 * 28;
+	
 	private static final long INITIAL_RETRY_INTERVAL = 1000 * 5;
-	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 120; 
+	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 60 * 2;
 	private long mStartTime;
 
 	private SharedPreferences mPrefs;
@@ -43,17 +48,17 @@ public class KeepAliveService extends Service
 	public static void actionStart(Context ctx)
 	{
 		Intent i = new Intent(ctx, KeepAliveService.class);
-		i.setAction("start");
+		i.setAction(ACTION_START);
 		ctx.startService(i);
 	}
 
 	public static void actionStop(Context ctx)
 	{
 		Intent i = new Intent(ctx, KeepAliveService.class);
-		i.setAction("stop");
+		i.setAction(ACTION_STOP);
 		ctx.startService(i);
 	}
-
+	
 	@Override
 	public void onCreate()
 	{
@@ -72,11 +77,11 @@ public class KeepAliveService extends Service
 	{
 		super.onStart(intent, startId);
 
-		if (intent.getAction().equals("start") == true)
+		if (intent.getAction().equals(ACTION_START) == true)
 		{
 			start();
 		}
-		else if (intent.getAction().equals("stop") == true)
+		else if (intent.getAction().equals(ACTION_STOP) == true)
 		{
 			stop();
 			stopSelf();
@@ -109,8 +114,8 @@ public class KeepAliveService extends Service
 		i.setAction(ACTION_KEEPALIVE);
 		PendingIntent pi = PendingIntent.getBroadcast(this, 0, i, 0);
 		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
-		alarmMgr.setRepeating(AlarmManager.RTC_WAKEUP, mStartTime + 120000,
-		  120000, pi);
+		alarmMgr.setRepeating(AlarmManager.RTC_WAKEUP,
+		  mStartTime + KEEP_ALIVE_INTERVAL, KEEP_ALIVE_INTERVAL, pi);
 	}
 
 	public synchronized void stop()
@@ -153,8 +158,8 @@ public class KeepAliveService extends Service
 		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
 
 		Intent i = new Intent();
-		i.setClassName("org.devtcg.demo.keepalive", "org.devtcg.demo.keepalive.KeepAliveService");
-		i.setAction("start");
+		i.setClass(this, KeepAliveService.class);
+		i.setAction(ACTION_START);
 		PendingIntent pi = PendingIntent.getService(this, 0, i, 0);
 
 		alarmMgr.set(AlarmManager.RTC_WAKEUP, now + interval, pi);
@@ -192,8 +197,6 @@ public class KeepAliveService extends Service
 		{
 			boolean shutdown = false;
 			
-//			KeepAliveThread keepAlive = null;
-
 			try {
 				Log.i(TAG, "Retrying connection...");
 
@@ -204,9 +207,6 @@ public class KeepAliveService extends Service
 				mSocket.connect(new InetSocketAddress(mHost, mPort), 20000);
 
 				Log.i(TAG, "Established.");
-
-//				keepAlive = new KeepAliveThread(mSocket);
-//				keepAlive.start();
 
 				InputStream in = mSocket.getInputStream();
 				OutputStream out = mSocket.getOutputStream();
@@ -222,9 +222,6 @@ public class KeepAliveService extends Service
 				Log.e(TAG, "Exception occurred", e);
 			}
 			
-//			if (keepAlive != null)
-//				keepAlive.abort();
-
 			synchronized(this) {
 				if (mSocket.isClosed() == true)
 					shutdown = true;
@@ -261,7 +258,8 @@ public class KeepAliveService extends Service
 				s = mSocket;
 			}
 
-			s.getOutputStream().write("NOOP\n".getBytes());
+			Date d = new Date();
+			s.getOutputStream().write((d.toString() + "\n").getBytes());
 		}
 
 		public void abort()
@@ -277,74 +275,5 @@ public class KeepAliveService extends Service
 				} catch (IOException e) {}
 			}
 		}
-
-//		private class KeepAliveThread extends Thread
-//		{
-//			private static final int KEEPALIVE_INTERVAL = 1000 * 120;
-//
-//			private Socket mSocket;
-//
-//			private Object mKeepAliveLock = new Object();
-//			private boolean mStop;
-//
-//			public KeepAliveThread(Socket socket)
-//			{
-//				mSocket = socket;
-//			}
-//
-//			public void run()
-//			{
-//				try {
-//					OutputStream out = mSocket.getOutputStream();
-//					byte[] keepalive = "NOOP\n".getBytes(); 
-//
-//					while (true)
-//					{
-//						synchronized(mKeepAliveLock) {
-//							long t1 = System.currentTimeMillis();
-//
-//							try {
-//								mKeepAliveLock.wait(KEEPALIVE_INTERVAL);
-//							} catch (InterruptedException e) {}
-//
-//							long el = System.currentTimeMillis() - t1;
-//
-//							Log.i(TAG, "Waited " + el + "ms for keepalive (should be less than 120000)");
-//
-//							if (mStop == true)
-//								break;
-//						}
-//
-//						out.write(keepalive);
-//					}
-//				} catch (IOException e) {
-//					/* We assume that this exception must be fatal to the
-//					 * connection.  If it's not, we won't be sending
-//					 * any Keep-Alive's anymore and the connection will
-//					 * die anyway... */
-//				}
-//
-//				Log.w(TAG, "Keep-Alive thread aborting");
-//			}
-//
-//			public void reset()
-//			{
-//				interrupt();
-//				
-//				synchronized(mKeepAliveLock) {
-//					mKeepAliveLock.notify();
-//				}
-//			}
-//
-//			public void abort()
-//			{
-//				interrupt();
-//
-//				synchronized(mKeepAliveLock) {
-//					mStop = true;
-//					mKeepAliveLock.notify();
-//				}
-//			}
-//		}
 	}
 }

@@ -18,16 +18,7 @@ public class TestKeepAlive extends Activity
 	private Button mStart;
 	private Button mStop;
 	
-	private Handler mHandler = new Handler();
-
-    @Override
-    public void onCreate(Bundle icicle)
-    {
-        super.onCreate(icicle);
-        onInitUI();
-    }
-
-    private final OnClickListener mStartClick = new OnClickListener()
+	private final OnClickListener mStartClick = new OnClickListener()
     {
     	public void onClick(View v)
     	{
@@ -43,13 +34,14 @@ public class TestKeepAlive extends Activity
     	}    	
     };
 
-	protected void onInitUI()
+    @Override
+	public void onCreate(Bundle icicle)
 	{
         setContentView(R.layout.main);
 
         mStart = (Button)findViewById(R.id.start);
         mStart.setOnClickListener(mStartClick);
-        
+
         mStop = (Button)findViewById(R.id.stop);
         mStop.setOnClickListener(mStopClick);
 	}
