@@ -1,5 +1,5 @@
 /*
- * $Id: ServiceActivity.java 937 2008-10-23 04:24:00Z jasta00 $
+ * $Id: ServiceActivity.java 1042 2008-12-23 01:27:21Z jasta00 $
  *
  * Copyright (C) 2008 Josh Guilfoyle <jasta@devtcg.org>
  *
@@ -21,7 +21,10 @@ import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.IInterface;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,27 +33,32 @@ import android.view.ViewGroup;
  * Utility class to create activities which critically depend on a service 
  * connection.
  */
-public abstract class ServiceActivity extends Activity
-  implements ServiceConnection
+public abstract class ServiceActivity<T extends IInterface> extends Activity
 {
 	public static final String TAG = "ServiceActivity";
 
 	/**
-	 * Convenience feature to allow ServiceActivity subclasses to defer
-	 * UI construction/assignment until the service is connected, and then
-	 * manage hiding/showing the UI to match the service state.
+	 * When connected, references the service interface as a convenience to
+	 * subclasses.
+	 */
+	protected T mService = null;
+
+	/**
+	 * Convenience feature to allow subclasses to defer UI
+	 * construction/assignment until the service is connected, and then manage
+	 * hiding/showing the UI to match the service state.
 	 * 
 	 * @see onInitUI
 	 */
-	protected boolean mHasUI = false;
+	private boolean mShowingUI = false;
 
 	@Override
-	public void onStart()
+	protected void onStart()
 	{
 		super.onStart();
-
+		
 		Log.d(TAG, "onStart(): Binding service...");
-
+		
 		if (bindService() == false)
 			onServiceFatal();
 	}
@@ -59,26 +67,31 @@ public abstract class ServiceActivity extends Activity
 	protected void onStop()
 	{
 		Log.d(TAG, "onStop(): Unbinding service...");
+		
+		if (mService != null)
+			onDetached();
+
+		showUI(false);
 
 		unbindService();
-		displayUI(false);
+		mService = null;
 
 		super.onStop();
 	}
-	
-	protected boolean hasUI()
+
+	protected boolean isShown()
 	{
-		return mHasUI;
+		return mShowingUI;
 	}
-	
-	protected void displayUI(boolean display)
+
+	protected void showUI(boolean display)
 	{
-		if (mHasUI == false)
+		if (mShowingUI == false)
 		{
 			if (display == true)
 			{
 				onInitUI();
-				mHasUI = true;
+				mShowingUI = true;
 			}
 		}
 		else
@@ -92,33 +105,64 @@ public abstract class ServiceActivity extends Activity
 
 	/**
 	 * Called when the activity needs to display the UI for the first
-	 * time.
+	 * time.  Initialization is similar to {@link Activity#onCreate}.
 	 */
 	protected abstract void onInitUI();
+	
+	/**
+	 * Called when the activity is attached to the service, and not necessarily
+	 * the first time it connects.  You should register listeners and fit
+	 * the UI to the service state here.
+	 */
+	protected abstract void onAttached();
+
+	/**
+	 * Called when the activity is detached from the service.  You should
+	 * unregister listeners and tidy up internal state accordingly.
+	 */
+	protected abstract void onDetached();
+
+	protected abstract Intent getServiceIntent();
+	protected abstract T getServiceInterface(IBinder service);
 
 	private boolean bindService()
 	{
 		Intent i = getServiceIntent();
 
-		/* I don't remember why we start first, then bind.  I picked it up
-		 * somewhere back in M5 days, so perhaps it no longer applies. */
+		/* Start the service first to ensure that it survives after our
+		 * activity unbinds (if it wants to). */
 		ComponentName name = startService(i);
 
 		if (name == null)
 			return false;
 
 		boolean bound = bindService(new Intent().setComponent(name),
-		  this, BIND_AUTO_CREATE);
+		  mConnection, BIND_AUTO_CREATE);
 
 		return bound;
 	}
 
 	private void unbindService()
 	{
-		unbindService(this);
+		unbindService(mConnection);
 	}
+	
+	private final ServiceConnection mConnection = new ServiceConnection()
+	{
+		public void onServiceConnected(ComponentName name, IBinder service)
+        {
+			mService = getServiceInterface(service);
 
-	protected abstract Intent getServiceIntent();
+			showUI(true);
+			onAttached();
+        }
+
+		public void onServiceDisconnected(ComponentName name)
+        {
+			onServiceFatal();
+			mService = null;
+        }
+	};
 
 	/**
 	 * Fatal error attempting to either start or bind to the service specified
@@ -128,6 +172,13 @@ public abstract class ServiceActivity extends Activity
 	protected void onServiceFatal()
 	{
 		Log.e(TAG, "Unable to start service: " + getServiceIntent());
+
+		(new AlertDialog.Builder(this))
+		  .setIcon(android.R.drawable.ic_dialog_alert)
+		  .setTitle("Sorry!")
+		  .setMessage("Unexpected fatal error!")
+		  .create().show();
+
 		finish();
 	}
 }
