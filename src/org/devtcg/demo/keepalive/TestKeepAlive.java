@@ -17,32 +17,33 @@ public class TestKeepAlive extends Activity
 
 	private Button mStart;
 	private Button mStop;
-	
+
 	private final OnClickListener mStartClick = new OnClickListener()
-    {
-    	public void onClick(View v)
-    	{
-   			KeepAliveService.actionStart(TestKeepAlive.this);
-    	}
-    };
+	{
+		public void onClick(View v)
+		{
+			KeepAliveService.actionStart(TestKeepAlive.this);
+		}
+	};
 
-    private final OnClickListener mStopClick = new OnClickListener()
-    {
-    	public void onClick(View v)
-    	{
-   			KeepAliveService.actionStop(TestKeepAlive.this);
-    	}    	
-    };
+	private final OnClickListener mStopClick = new OnClickListener()
+	{
+		public void onClick(View v)
+		{
+			KeepAliveService.actionStop(TestKeepAlive.this);
+		}
+	};
 
-    @Override
+	@Override
 	public void onCreate(Bundle icicle)
 	{
-        setContentView(R.layout.main);
+		super.onCreate(icicle);
+		setContentView(R.layout.main);
 
-        mStart = (Button)findViewById(R.id.start);
-        mStart.setOnClickListener(mStartClick);
+		mStart = (Button)findViewById(R.id.start);
+		mStart.setOnClickListener(mStartClick);
 
-        mStop = (Button)findViewById(R.id.stop);
-        mStop.setOnClickListener(mStopClick);
+		mStop = (Button)findViewById(R.id.stop);
+		mStop.setOnClickListener(mStopClick);
 	}
 }
