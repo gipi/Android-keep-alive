@@ -85,19 +85,17 @@ public class KeepAliveService extends Service
 	{
 		super.onStart(intent, startId);
 
-		if (intent.getAction().equals(ACTION_START) == true)
-		{
-			start();
-		}
-		else if (intent.getAction().equals(ACTION_STOP) == true)
+		if (intent.getAction().equals(ACTION_STOP) == true)
 		{
 			stop();
 			stopSelf();
 		}
+		else if (intent.getAction().equals(ACTION_START) == true)
+			start();
+		else if (intent.getAction().equals(ACTION_KEEPALIVE) == true)
+			keepAlive();
 		else if (intent.getAction().equals(ACTION_RECONNECT) == true)
-		{
 			reconnectIfNecessary();
-		}
 	}
 	
 	@Override
@@ -106,7 +104,7 @@ public class KeepAliveService extends Service
 		return null;
 	}
 
-	public synchronized void start()
+	private synchronized void start()
 	{
 		if (mStarted == true)
 		{
@@ -123,7 +121,7 @@ public class KeepAliveService extends Service
 		mConnection.start();
 	}
 
-	public synchronized void stop()
+	private synchronized void stop()
 	{
 		if (mStarted == false)
 		{
@@ -142,20 +140,26 @@ public class KeepAliveService extends Service
 		}
 	}
 
+	private synchronized void keepAlive()
+	{
+		Log.i(TAG, "Hello.");
+
+		try {
+			if (mConnection != null)
+				mConnection.sendKeepAlive();
+		} catch (IOException e) {}
+	}
+
 	private void startKeepAlives()
 	{
 		Intent i = new Intent();
 		i.setClass(this, KeepAliveService.class);
 		i.setAction(ACTION_KEEPALIVE);
-		PendingIntent pi = PendingIntent.getBroadcast(this, 0, i, 0);
+		PendingIntent pi = PendingIntent.getService(this, 0, i, 0);
 		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
 		alarmMgr.setRepeating(AlarmManager.RTC_WAKEUP,
 		  System.currentTimeMillis() + KEEP_ALIVE_INTERVAL,
 		  KEEP_ALIVE_INTERVAL, pi);
-
-		IntentFilter f = new IntentFilter();
-		f.addAction(ACTION_KEEPALIVE);
-		registerReceiver(mKeepAliveReceiver, f);
 	}
 
 	private void stopKeepAlives()
@@ -163,31 +167,10 @@ public class KeepAliveService extends Service
 		Intent i = new Intent();
 		i.setClass(this, KeepAliveService.class);
 		i.setAction(ACTION_KEEPALIVE);
-		PendingIntent pi = PendingIntent.getBroadcast(this, 0, i, 0);
+		PendingIntent pi = PendingIntent.getService(this, 0, i, 0);
 		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
 		alarmMgr.cancel(pi);
-
-		unregisterReceiver(mKeepAliveReceiver);
 	}
-
-	private BroadcastReceiver mKeepAliveReceiver = new BroadcastReceiver()
-	{
-		@Override
-		public void onReceive(Context context, Intent intent)
-		{
-			Log.i(TAG, "Hello.");
-
-			synchronized(KeepAliveService.this) {
-				try {
-					if (intent.getAction().equals(ACTION_KEEPALIVE))
-					{
-						if (mConnection != null)
-							mConnection.sendKeepAlive();
-					}
-				} catch (IOException e) {}
-			}
-		}
-	};
 
 	public void scheduleReconnect(long startTime)
 	{
@@ -277,6 +260,7 @@ public class KeepAliveService extends Service
 				Log.i(TAG, "[Re]trying connection...");
 
 				s.connect(new InetSocketAddress(mHost, mPort), 20000);
+				s.setSoTimeout((int)KEEP_ALIVE_INTERVAL + 120000);
 
 				Log.i(TAG, "Established.");
 
