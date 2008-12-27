@@ -272,6 +272,16 @@ public class KeepAliveService extends Service
 				Log.i(TAG, "[Re]trying connection...");
 
 				s.connect(new InetSocketAddress(mHost, mPort), 20000);
+				
+				/* This is a special case for our demonstration.  The
+				 * keep-alive is sent from the client side but since I'm
+				 * testing it with just nc, no response is sent from the
+				 * server.  This means that we might never actually read
+				 * any data even though our connection is still alive.  Most
+				 * instances of a persistent TCP connection would have some
+				 * sort of application-layer acknowledgement from the server
+				 * and so should set a read timeout of KEEP_ALIVE_INTERVAL 
+				 * plus an arbitrary timeout such as 2 minutes. */
 				s.setSoTimeout(0);
 
 				Log.i(TAG, "Established.");
