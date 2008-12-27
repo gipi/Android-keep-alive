@@ -20,6 +20,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
@@ -34,14 +36,17 @@ public class KeepAliveService extends Service
 	private static final String ACTION_START = "org.devtcg.demo.keepalive.START";
 	private static final String ACTION_STOP = "org.devtcg.demo.keepalive.STOP";
 	private static final String ACTION_KEEPALIVE = "org.devtcg.demo.keepalive.KEEP_ALIVE";
+	private static final String ACTION_RECONNECT = "org.devtcg.demo.keepalive.RECONNECT";
 
+	private ConnectivityManager mConnMan;
+
+	private boolean mStarted;
 	private ConnectionThread mConnection;
-	
+
 	private static final long KEEP_ALIVE_INTERVAL = 1000 * 60 * 28;
 	
 	private static final long INITIAL_RETRY_INTERVAL = 1000 * 5;
 	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 60 * 2;
-	private long mStartTime;
 
 	private SharedPreferences mPrefs;
 
@@ -58,12 +63,15 @@ public class KeepAliveService extends Service
 		i.setAction(ACTION_STOP);
 		ctx.startService(i);
 	}
-	
+
 	@Override
 	public void onCreate()
 	{
 		super.onCreate();
 		mPrefs = getSharedPreferences(TAG, MODE_PRIVATE);
+
+		mConnMan =
+		  (ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
 	}
 
 	@Override
@@ -86,6 +94,10 @@ public class KeepAliveService extends Service
 			stop();
 			stopSelf();
 		}
+		else if (intent.getAction().equals(ACTION_RECONNECT) == true)
+		{
+			reconnectIfNecessary();
+		}
 	}
 	
 	@Override
@@ -96,55 +108,94 @@ public class KeepAliveService extends Service
 
 	public synchronized void start()
 	{
-		if (mConnection != null)
+		if (mStarted == true)
 		{
 			Log.w(TAG, "Attempt to start connection that is already active");
 			return;
 		}
-		
-		mStartTime = System.currentTimeMillis();
+
+		mStarted = true;
+
+		registerReceiver(mConnectivityChanged,
+		  new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+
 		mConnection = new ConnectionThread(HOST, PORT);
 		mConnection.start();
-
-		IntentFilter f = new IntentFilter();
-		f.addAction(ACTION_KEEPALIVE);
-		registerReceiver(mKeepAliveReceiver, f);
-
-		Intent i = new Intent();
-		i.setAction(ACTION_KEEPALIVE);
-		PendingIntent pi = PendingIntent.getBroadcast(this, 0, i, 0);
-		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
-		alarmMgr.setRepeating(AlarmManager.RTC_WAKEUP,
-		  mStartTime + KEEP_ALIVE_INTERVAL, KEEP_ALIVE_INTERVAL, pi);
 	}
 
 	public synchronized void stop()
 	{
-		if (mConnection == null)
+		if (mStarted == false)
 		{
 			Log.w(TAG, "Attempt to stop connection not active.");
 			return;
 		}
 
+		mStarted = false;
+		
+		unregisterReceiver(mConnectivityChanged);
+
+		if (mConnection != null)
+		{
+			mConnection.abort();
+			mConnection = null;
+		}
+	}
+
+	private void startKeepAlives()
+	{
 		Intent i = new Intent();
+		i.setClass(this, KeepAliveService.class);
+		i.setAction(ACTION_KEEPALIVE);
+		PendingIntent pi = PendingIntent.getBroadcast(this, 0, i, 0);
+		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
+		alarmMgr.setRepeating(AlarmManager.RTC_WAKEUP,
+		  System.currentTimeMillis() + KEEP_ALIVE_INTERVAL,
+		  KEEP_ALIVE_INTERVAL, pi);
+
+		IntentFilter f = new IntentFilter();
+		f.addAction(ACTION_KEEPALIVE);
+		registerReceiver(mKeepAliveReceiver, f);
+	}
+
+	private void stopKeepAlives()
+	{
+		Intent i = new Intent();
+		i.setClass(this, KeepAliveService.class);
 		i.setAction(ACTION_KEEPALIVE);
 		PendingIntent pi = PendingIntent.getBroadcast(this, 0, i, 0);
 		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
 		alarmMgr.cancel(pi);
 
 		unregisterReceiver(mKeepAliveReceiver);
-
-		mConnection.abort();
-		mConnection = null;
 	}
-	
-	public void reschedule()
+
+	private BroadcastReceiver mKeepAliveReceiver = new BroadcastReceiver()
+	{
+		@Override
+		public void onReceive(Context context, Intent intent)
+		{
+			Log.i(TAG, "Hello.");
+
+			synchronized(KeepAliveService.this) {
+				try {
+					if (intent.getAction().equals(ACTION_KEEPALIVE))
+					{
+						if (mConnection != null)
+							mConnection.sendKeepAlive();
+					}
+				} catch (IOException e) {}
+			}
+		}
+	};
+
+	public void scheduleReconnect(long startTime)
 	{
 		long interval =
 		  mPrefs.getLong("retryInterval", INITIAL_RETRY_INTERVAL);
 
 		long now = System.currentTimeMillis();
-		long elapsed = now - mStartTime;
+		long elapsed = now - startTime;
 
 		if (elapsed < interval)
 			interval = Math.min(interval * 10, MAXIMUM_RETRY_INTERVAL);
@@ -159,31 +210,39 @@ public class KeepAliveService extends Service
 
 		Intent i = new Intent();
 		i.setClass(this, KeepAliveService.class);
-		i.setAction(ACTION_START);
+		i.setAction(ACTION_RECONNECT);
 		PendingIntent pi = PendingIntent.getService(this, 0, i, 0);
 
 		alarmMgr.set(AlarmManager.RTC_WAKEUP, now + interval, pi);
 	}
 
-	private BroadcastReceiver mKeepAliveReceiver = new BroadcastReceiver()
+	private synchronized void reconnectIfNecessary()
+	{
+		if (mStarted == true && mConnection == null)
+		{
+			mConnection = new ConnectionThread(HOST, PORT);
+			mConnection.start();			
+		}
+	}
+
+	private BroadcastReceiver mConnectivityChanged = new BroadcastReceiver()
 	{
 		@Override
 		public void onReceive(Context context, Intent intent)
 		{
-			Log.i(TAG, "Hello.");
+			NetworkInfo info = (NetworkInfo)intent.getParcelableExtra
+			  (ConnectivityManager.EXTRA_NETWORK_INFO);
 
-			synchronized(KeepAliveService.this) {
-				try {
-					if (mConnection != null)
-						mConnection.sendKeepAlive();
-				} catch (IOException e) {}
-			}
+			Log.v(TAG, "ConnectivityChanged: info=" + info);
+
+			if (info != null && info.isConnected() == true)
+				reconnectIfNecessary();
 		}
 	};
 
 	private class ConnectionThread extends Thread
 	{
-		private Socket mSocket;
+		private final Socket mSocket;
 		private final String mHost;
 		private final int mPort;
 
@@ -191,25 +250,40 @@ public class KeepAliveService extends Service
 		{
 			mHost = host;
 			mPort = port;
+			mSocket = new Socket();
+		}
+
+		public boolean isConnected()
+		{
+			return mSocket.isConnected();
+		}
+
+		private boolean isNetworkAvailable()
+		{
+			NetworkInfo info = mConnMan.getActiveNetworkInfo();
+			if (info == null)
+				return false;
+
+			return info.isConnected();
 		}
 
 		public void run()
 		{
-			boolean shutdown = false;
+			Socket s = mSocket;
+			
+			long startTime = System.currentTimeMillis();
 			
 			try {
-				Log.i(TAG, "Retrying connection...");
+				Log.i(TAG, "[Re]trying connection...");
 
-				synchronized(this) {
-					mSocket = new Socket();
-				}
-
-				mSocket.connect(new InetSocketAddress(mHost, mPort), 20000);
+				s.connect(new InetSocketAddress(mHost, mPort), 20000);
 
 				Log.i(TAG, "Established.");
 
-				InputStream in = mSocket.getInputStream();
-				OutputStream out = mSocket.getOutputStream();
+				startKeepAlives();
+
+				InputStream in = s.getInputStream();
+				OutputStream out = s.getOutputStream();
 
 				byte[] b = new byte[1024];
 				int n;
@@ -217,46 +291,39 @@ public class KeepAliveService extends Service
 				while ((n = in.read(b)) >= 0)
 					out.write(b, 0, n);
 
-				Log.e(TAG, "Server closed connection!");
+				Log.i(TAG, "Server closed connection unexpectedly!");
 			} catch (IOException e) {
 				Log.e(TAG, "Exception occurred", e);
-			}
-			
-			synchronized(this) {
-				if (mSocket.isClosed() == true)
-					shutdown = true;
+			} finally {
+				stopKeepAlives();
+
+				if (s.isClosed() == true)
+					Log.i(TAG, "Shutting down...");
 				else
 				{
 					try {
-						mSocket.close();
+						s.close();
 					} catch (IOException e) {}
+
+					synchronized(KeepAliveService.this) {
+						mConnection = null;
+					}
+
+					/* If our local interface is still up then the connection
+					 * failure must have been something intermittent.  Try
+					 * our connection again later (the wait grows with each
+					 * successive failure).  Otherwise we will try to
+					 * reconnect when the local interface comes back. */
+					if (isNetworkAvailable() == true)
+						scheduleReconnect(startTime);
 				}
-
-				mSocket = null;
-			}
-
-			if (shutdown == true)
-				Log.i(TAG, "Shutting down...");
-			else
-			{
-				synchronized(KeepAliveService.this) {
-					mConnection = null;
-				}
-
-				reschedule();
-				stop();
-				stopSelf();
 			}
 		}
 
 		public void sendKeepAlive()
 		  throws IOException
 		{
-			Socket s;
-			
-			synchronized(this) {
-				s = mSocket;
-			}
+			Socket s = mSocket;
 
 			Date d = new Date();
 			s.getOutputStream().write((d.toString() + "\n").getBytes());
@@ -270,8 +337,7 @@ public class KeepAliveService extends Service
 
 			synchronized(this) {
 				try {
-					if (mSocket != null)
-						mSocket.close();
+					mSocket.close();
 				} catch (IOException e) {}
 			}
 		}
