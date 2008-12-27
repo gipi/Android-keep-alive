@@ -272,7 +272,7 @@ public class KeepAliveService extends Service
 				Log.i(TAG, "[Re]trying connection...");
 
 				s.connect(new InetSocketAddress(mHost, mPort), 20000);
-				s.setSoTimeout((int)KEEP_ALIVE_INTERVAL + 240000);
+				s.setSoTimeout(0);
 
 				Log.i(TAG, "Established.");
 
@@ -292,7 +292,7 @@ public class KeepAliveService extends Service
 
 				Log.i(TAG, "Server closed connection unexpectedly!");
 			} catch (IOException e) {
-				Log.e(TAG, "Exception occurred", e);
+				Log.e(TAG, "Exception occurred: " + e.toString());
 			} finally {
 				stopKeepAlives();
 
