@@ -37,7 +37,7 @@ public class KeepAliveService extends Service
 	private boolean mStarted;
 	private ConnectionThread mConnection;
 
-	private static final long KEEP_ALIVE_INTERVAL = 1000 * 60 * 28;
+	private static final long KEEP_ALIVE_INTERVAL = 1000 * 60 * 25;
 	
 	private static final long INITIAL_RETRY_INTERVAL = 1000 * 5;
 	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 60 * 2;
