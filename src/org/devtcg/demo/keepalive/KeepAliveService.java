@@ -183,13 +183,11 @@ public class KeepAliveService extends Service
 
 		mPrefs.edit().putLong("retryInterval", interval).commit();
 
-		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
-
 		Intent i = new Intent();
 		i.setClass(this, KeepAliveService.class);
 		i.setAction(ACTION_RECONNECT);
 		PendingIntent pi = PendingIntent.getService(this, 0, i, 0);
-
+		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
 		alarmMgr.set(AlarmManager.RTC_WAKEUP, now + interval, pi);
 	}
 
