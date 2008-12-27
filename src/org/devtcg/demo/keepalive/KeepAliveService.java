@@ -21,6 +21,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import android.app.AlarmManager;
@@ -53,8 +55,8 @@ public class KeepAliveService extends Service
 	private boolean mStarted;
 	private ConnectionThread mConnection;
 
-	private static final long KEEP_ALIVE_INTERVAL = 1000 * 60 * 25;
-	
+	private static final long KEEP_ALIVE_INTERVAL = 1000 * 60 * 10;
+
 	private static final long INITIAL_RETRY_INTERVAL = 1000 * 5;
 	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 60 * 2;
 
@@ -87,7 +89,8 @@ public class KeepAliveService extends Service
 	@Override
 	public void onDestroy()
 	{
-		stop();
+		if (mStarted == true)
+			stop();
 	}
 
 	@Override
@@ -263,12 +266,13 @@ public class KeepAliveService extends Service
 			Socket s = mSocket;
 			
 			long startTime = System.currentTimeMillis();
+			long lastComm = startTime;
 			
 			try {
 				Log.i(TAG, "[Re]trying connection...");
 
 				s.connect(new InetSocketAddress(mHost, mPort), 20000);
-				s.setSoTimeout((int)KEEP_ALIVE_INTERVAL + 120000);
+				s.setSoTimeout((int)KEEP_ALIVE_INTERVAL + 240000);
 
 				Log.i(TAG, "Established.");
 
@@ -281,7 +285,10 @@ public class KeepAliveService extends Service
 				int n;
 
 				while ((n = in.read(b)) >= 0)
+				{
+					lastComm = System.currentTimeMillis();
 					out.write(b, 0, n);
+				}
 
 				Log.i(TAG, "Server closed connection unexpectedly!");
 			} catch (IOException e) {
@@ -293,6 +300,14 @@ public class KeepAliveService extends Service
 					Log.i(TAG, "Shutting down...");
 				else
 				{
+					DateFormat df = new SimpleDateFormat("hh:mm:ss");
+					Log.d(TAG, "Connection opened at " +
+					  df.format(new Date(startTime)) +
+					  ", closed at " + 
+					  df.format(new Date()) +
+					  ": last communication at " + 
+					  df.format(new Date(lastComm)));
+					  
 					try {
 						s.close();
 					} catch (IOException e) {}
@@ -316,7 +331,6 @@ public class KeepAliveService extends Service
 		  throws IOException
 		{
 			Socket s = mSocket;
-
 			Date d = new Date();
 			s.getOutputStream().write((d.toString() + "\n").getBytes());
 		}
