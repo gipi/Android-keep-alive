@@ -310,7 +310,7 @@ public class KeepAliveService extends Service
 
 				/* This is a special case for our demonstration.  The
 				 * keep-alive is sent from the client side but since I'm
-				 * testing it with just nc, no response is sent from the
+				 * testing it with just netcat, no response is sent from the
 				 * server.  This means that we might never actually read
 				 * any data even though our connection is still alive.  Most
 				 * instances of a persistent TCP connection would have some
