@@ -26,6 +26,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import android.app.AlarmManager;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
@@ -37,6 +39,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.IBinder;
 import android.util.Log;
+import android.widget.RemoteViews;
 
 public class KeepAliveService extends Service
 {
@@ -51,6 +54,7 @@ public class KeepAliveService extends Service
 	private static final String ACTION_RECONNECT = "org.devtcg.demo.keepalive.RECONNECT";
 
 	private ConnectivityManager mConnMan;
+	private NotificationManager mNotifMan;
 
 	private boolean mStarted;
 	private ConnectionThread mConnection;
@@ -61,6 +65,8 @@ public class KeepAliveService extends Service
 	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 60 * 2;
 
 	private SharedPreferences mPrefs;
+	
+	private static final int NOTIF_CONNECTED = 0;
 
 	public static void actionStart(Context ctx)
 	{
@@ -84,6 +90,9 @@ public class KeepAliveService extends Service
 
 		mConnMan =
 		  (ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
+		
+		mNotifMan =
+		  (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
 	}
 
 	@Override
@@ -233,12 +242,38 @@ public class KeepAliveService extends Service
 				reconnectIfNecessary();
 		}
 	};
+	
+	private void showNotification()
+	{
+		Notification n = new Notification();
+		
+		n.flags = Notification.FLAG_NO_CLEAR |
+		  Notification.FLAG_ONGOING_EVENT;
+
+		n.icon = R.drawable.connected_notify;
+		n.when = System.currentTimeMillis();
+
+		PendingIntent pi = PendingIntent.getActivity(this, 0,
+		  new Intent(this, TestKeepAlive.class), 0);
+
+		n.setLatestEventInfo(this, "KeepAlive connected",
+		  "Connected to " + HOST + ":" + PORT, pi);
+
+		mNotifMan.notify(NOTIF_CONNECTED, n);
+	}
+	
+	private void hideNotification()
+	{
+		mNotifMan.cancel(NOTIF_CONNECTED);
+	}
 
 	private class ConnectionThread extends Thread
 	{
 		private final Socket mSocket;
 		private final String mHost;
 		private final int mPort;
+		
+		private volatile boolean mAbort = false;
 
 		public ConnectionThread(String host, int port)
 		{
@@ -272,7 +307,7 @@ public class KeepAliveService extends Service
 				Log.i(TAG, "[Re]trying connection...");
 
 				s.connect(new InetSocketAddress(mHost, mPort), 20000);
-				
+
 				/* This is a special case for our demonstration.  The
 				 * keep-alive is sent from the client side but since I'm
 				 * testing it with just nc, no response is sent from the
@@ -283,10 +318,11 @@ public class KeepAliveService extends Service
 				 * and so should set a read timeout of KEEP_ALIVE_INTERVAL 
 				 * plus an arbitrary timeout such as 2 minutes. */
 				s.setSoTimeout(0);
-
+				
 				Log.i(TAG, "Established.");
 
 				startKeepAlives();
+				showNotification();
 
 				InputStream in = s.getInputStream();
 				OutputStream out = s.getOutputStream();
@@ -305,8 +341,9 @@ public class KeepAliveService extends Service
 				Log.e(TAG, "Exception occurred: " + e.toString());
 			} finally {
 				stopKeepAlives();
+				hideNotification();
 
-				if (s.isClosed() == true)
+				if (mAbort == true)
 					Log.i(TAG, "Shutting down...");
 				else
 				{
@@ -315,9 +352,9 @@ public class KeepAliveService extends Service
 					  df.format(new Date(startTime)) +
 					  ", closed at " + 
 					  df.format(new Date()) +
-					  ": last communication at " + 
+					  ": last read at " + 
 					  df.format(new Date(lastComm)));
-					  
+
 					try {
 						s.close();
 					} catch (IOException e) {}
@@ -349,13 +386,13 @@ public class KeepAliveService extends Service
 		{
 			Log.i(TAG, "Abort requested!");
 
+			mAbort = true;
+
 			interrupt();
 
-			synchronized(this) {
-				try {
-					mSocket.close();
-				} catch (IOException e) {}
-			}
+			try {
+				mSocket.close();
+			} catch (IOException e) {}
 		}
 	}
 }
