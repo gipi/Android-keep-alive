@@ -52,6 +52,8 @@ public class KeepAliveService extends Service
 	private static final String ACTION_STOP = "org.devtcg.demo.keepalive.STOP";
 	private static final String ACTION_KEEPALIVE = "org.devtcg.demo.keepalive.KEEP_ALIVE";
 	private static final String ACTION_RECONNECT = "org.devtcg.demo.keepalive.RECONNECT";
+	
+	private ConnectionLog mLog;
 
 	private ConnectivityManager mConnMan;
 	private NotificationManager mNotifMan;
@@ -65,7 +67,7 @@ public class KeepAliveService extends Service
 	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 60 * 2;
 
 	private SharedPreferences mPrefs;
-	
+
 	private static final int NOTIF_CONNECTED = 0;
 
 	public static void actionStart(Context ctx)
@@ -86,8 +88,14 @@ public class KeepAliveService extends Service
 	public void onCreate()
 	{
 		super.onCreate();
-		mPrefs = getSharedPreferences(TAG, MODE_PRIVATE);
 
+		try {
+			mLog = new ConnectionLog();
+			Log.i(TAG, "Opened log at " + mLog.getPath());
+		} catch (IOException e) {}
+
+		mPrefs = getSharedPreferences(TAG, MODE_PRIVATE);
+		
 		mConnMan =
 		  (ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
 		
@@ -98,14 +106,35 @@ public class KeepAliveService extends Service
 	@Override
 	public void onDestroy()
 	{
+		log("Service destroyed (started=" + mStarted + ")");
+
 		if (mStarted == true)
 			stop();
+
+		try {
+			if (mLog != null)
+				mLog.close();
+		} catch (IOException e) {}
+	}
+
+	private void log(String message)
+	{
+		Log.i(TAG, message);
+
+		if (mLog != null)
+		{
+			try {
+				mLog.println(message);
+			} catch (IOException e) {}
+		}
 	}
 
 	@Override
 	public void onStart(Intent intent, int startId)
 	{
 		super.onStart(intent, startId);
+		
+		log("Service started with action=" + intent.getAction());
 
 		if (intent.getAction().equals(ACTION_STOP) == true)
 		{
@@ -139,6 +168,8 @@ public class KeepAliveService extends Service
 		registerReceiver(mConnectivityChanged,
 		  new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
 
+		log("Connecting...");
+
 		mConnection = new ConnectionThread(HOST, PORT);
 		mConnection.start();
 	}
@@ -152,8 +183,9 @@ public class KeepAliveService extends Service
 		}
 
 		mStarted = false;
-		
-		unregisterReceiver(mConnectivityChanged);
+
+		unregisterReceiver(mConnectivityChanged);		
+		cancelReconnect();
 
 		if (mConnection != null)
 		{
@@ -164,8 +196,6 @@ public class KeepAliveService extends Service
 
 	private synchronized void keepAlive()
 	{
-		Log.i(TAG, "Hello.");
-
 		try {
 			if (mConnection != null)
 				mConnection.sendKeepAlive();
@@ -207,7 +237,7 @@ public class KeepAliveService extends Service
 		else
 			interval = INITIAL_RETRY_INTERVAL;
 
-		Log.i(TAG, "Waiting " + interval + "ms before retrying connection...");
+		log("Rescheduling connection in " + interval + "ms.");
 
 		mPrefs.edit().putLong("retryInterval", interval).commit();
 
@@ -218,13 +248,25 @@ public class KeepAliveService extends Service
 		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
 		alarmMgr.set(AlarmManager.RTC_WAKEUP, now + interval, pi);
 	}
+	
+	public void cancelReconnect()
+	{
+		Intent i = new Intent();
+		i.setClass(this, KeepAliveService.class);
+		i.setAction(ACTION_RECONNECT);
+		PendingIntent pi = PendingIntent.getService(this, 0, i, 0);
+		AlarmManager alarmMgr = (AlarmManager)getSystemService(ALARM_SERVICE);
+		alarmMgr.cancel(pi);
+	}
 
 	private synchronized void reconnectIfNecessary()
 	{
 		if (mStarted == true && mConnection == null)
 		{
+			log("Reconnecting...");
+			
 			mConnection = new ConnectionThread(HOST, PORT);
-			mConnection.start();			
+			mConnection.start();
 		}
 	}
 
@@ -236,7 +278,8 @@ public class KeepAliveService extends Service
 			NetworkInfo info = (NetworkInfo)intent.getParcelableExtra
 			  (ConnectivityManager.EXTRA_NETWORK_INFO);
 
-			Log.v(TAG, "ConnectivityChanged: info=" + info);
+			log("Connecting changed: connected=" +
+			  ((info != null && info.isConnected()) ? true : false));
 
 			if (info != null && info.isConnected() == true)
 				reconnectIfNecessary();
@@ -302,12 +345,10 @@ public class KeepAliveService extends Service
 			
 			long startTime = System.currentTimeMillis();
 			long lastComm = startTime;
-			
+
 			try {
-				Log.i(TAG, "[Re]trying connection...");
-
 				s.connect(new InetSocketAddress(mHost, mPort), 20000);
-
+				
 				/* This is a special case for our demonstration.  The
 				 * keep-alive is sent from the client side but since I'm
 				 * testing it with just netcat, no response is sent from the
@@ -317,9 +358,9 @@ public class KeepAliveService extends Service
 				 * sort of application-layer acknowledgement from the server
 				 * and so should set a read timeout of KEEP_ALIVE_INTERVAL 
 				 * plus an arbitrary timeout such as 2 minutes. */
-				s.setSoTimeout(0);
-				
-				Log.i(TAG, "Established.");
+				//s.setSoTimeout((int)KEEP_ALIVE_INTERVAL + 120000);
+
+				log("Connection established to " + mHost + ":" + mPort);
 
 				startKeepAlives();
 				showNotification();
@@ -336,25 +377,18 @@ public class KeepAliveService extends Service
 					out.write(b, 0, n);
 				}
 
-				Log.i(TAG, "Server closed connection unexpectedly!");
+				if (mAbort == false)
+					log("Server closed connection unexpectedly.");
 			} catch (IOException e) {
-				Log.e(TAG, "Exception occurred: " + e.toString());
+				log("Unexpected I/O error: " + e.toString());
 			} finally {
 				stopKeepAlives();
 				hideNotification();
 
 				if (mAbort == true)
-					Log.i(TAG, "Shutting down...");
+					log("Connection aborted, shutting down.");
 				else
 				{
-					DateFormat df = new SimpleDateFormat("hh:mm:ss");
-					Log.d(TAG, "Connection opened at " +
-					  df.format(new Date(startTime)) +
-					  ", closed at " + 
-					  df.format(new Date()) +
-					  ": last read at " + 
-					  df.format(new Date(lastComm)));
-
 					try {
 						s.close();
 					} catch (IOException e) {}
@@ -380,19 +414,35 @@ public class KeepAliveService extends Service
 			Socket s = mSocket;
 			Date d = new Date();
 			s.getOutputStream().write((d.toString() + "\n").getBytes());
+			
+			log("Keep-alive sent.");
 		}
 
 		public void abort()
 		{
-			Log.i(TAG, "Abort requested!");
+			log("Connection aborting.");
 
 			mAbort = true;
 
-			interrupt();
-
+			try {
+				mSocket.shutdownOutput();
+			} catch (IOException e) {}
+			
+			try {
+				mSocket.shutdownInput();
+			} catch (IOException e) {}
+			
 			try {
 				mSocket.close();
 			} catch (IOException e) {}
+
+			while (true)
+			{
+				try {
+					join();
+					break;
+				} catch (InterruptedException e) {}
+			}
 		}
 	}
 }
