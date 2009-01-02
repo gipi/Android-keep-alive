@@ -95,10 +95,10 @@ public class KeepAliveService extends Service
 		} catch (IOException e) {}
 
 		mPrefs = getSharedPreferences(TAG, MODE_PRIVATE);
-		
+
 		mConnMan =
 		  (ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
-		
+
 		mNotifMan =
 		  (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
 	}
@@ -277,11 +277,13 @@ public class KeepAliveService extends Service
 		{
 			NetworkInfo info = (NetworkInfo)intent.getParcelableExtra
 			  (ConnectivityManager.EXTRA_NETWORK_INFO);
+			
+			boolean hasConnectivity = (info != null && info.isConnected()) 
+			  ? true : false;
 
-			log("Connecting changed: connected=" +
-			  ((info != null && info.isConnected()) ? true : false));
+			log("Connecting changed: connected=" + hasConnectivity);
 
-			if (info != null && info.isConnected() == true)
+			if (hasConnectivity)
 				reconnectIfNecessary();
 		}
 	};
