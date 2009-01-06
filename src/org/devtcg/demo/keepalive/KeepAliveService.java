@@ -21,8 +21,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import android.app.AlarmManager;
@@ -39,7 +37,6 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.IBinder;
 import android.util.Log;
-import android.widget.RemoteViews;
 
 public class KeepAliveService extends Service
 {
@@ -346,7 +343,6 @@ public class KeepAliveService extends Service
 			Socket s = mSocket;
 			
 			long startTime = System.currentTimeMillis();
-			long lastComm = startTime;
 
 			try {
 				s.connect(new InetSocketAddress(mHost, mPort), 20000);
@@ -374,10 +370,7 @@ public class KeepAliveService extends Service
 				int n;
 
 				while ((n = in.read(b)) >= 0)
-				{
-					lastComm = System.currentTimeMillis();
 					out.write(b, 0, n);
-				}
 
 				if (mAbort == false)
 					log("Server closed connection unexpectedly.");
