@@ -66,6 +66,8 @@ public class KeepAliveService extends Service
 	private SharedPreferences mPrefs;
 
 	private static final int NOTIF_CONNECTED = 0;
+	
+	private static final String PREF_STARTED = "isStarted";
 
 	public static void actionStart(Context ctx)
 	{
@@ -92,14 +94,33 @@ public class KeepAliveService extends Service
 		} catch (IOException e) {}
 
 		mPrefs = getSharedPreferences(TAG, MODE_PRIVATE);
-
+		
 		mConnMan =
 		  (ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
 
 		mNotifMan =
 		  (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+	
+		/* If our process was reaped by the system for any reason we need
+		 * to restore our state with merely a call to onCreate.  We record
+		 * the last "started" value and restore it here if necessary. */
+		handleCrashedService();
 	}
+	
+	private void handleCrashedService()
+	{
+		if (wasStarted() == true)
+		{
+			/* We probably didn't get a chance to clean up gracefully, so do
+			 * it now. */
+			hideNotification();			
+			stopKeepAlives();
 
+			/* Formally start and attempt connection. */
+			start();
+		}
+	}
+	
 	@Override
 	public void onDestroy()
 	{
@@ -124,6 +145,17 @@ public class KeepAliveService extends Service
 				mLog.println(message);
 			} catch (IOException e) {}
 		}
+	}
+	
+	private boolean wasStarted()
+	{
+		return mPrefs.getBoolean(PREF_STARTED, false);
+	}
+
+	private void setStarted(boolean started)
+	{
+		mPrefs.edit().putBoolean(PREF_STARTED, started).commit();
+		mStarted = started;
 	}
 
 	@Override
@@ -160,7 +192,7 @@ public class KeepAliveService extends Service
 			return;
 		}
 
-		mStarted = true;
+		setStarted(true);
 
 		registerReceiver(mConnectivityChanged,
 		  new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
@@ -179,7 +211,7 @@ public class KeepAliveService extends Service
 			return;
 		}
 
-		mStarted = false;
+		setStarted(false);
 
 		unregisterReceiver(mConnectivityChanged);		
 		cancelReconnect();
@@ -194,7 +226,7 @@ public class KeepAliveService extends Service
 	private synchronized void keepAlive()
 	{
 		try {
-			if (mConnection != null)
+			if (mStarted == true && mConnection != null)
 				mConnection.sendKeepAlive();
 		} catch (IOException e) {}
 	}
