@@ -132,9 +132,9 @@ public class KeepAliveService extends Service
 	@Override
 	public void onStart(Intent intent, int startId)
 	{
+		log("Service started with intent=" + intent);
+
 		super.onStart(intent, startId);
-		
-		log("Service started with action=" + intent.getAction());
 
 		if (intent.getAction().equals(ACTION_STOP) == true)
 		{
