@@ -82,6 +82,13 @@ public class KeepAliveService extends Service
 		i.setAction(ACTION_STOP);
 		ctx.startService(i);
 	}
+	
+	public static void actionPing(Context ctx)
+	{
+		Intent i = new Intent(ctx, KeepAliveService.class);
+		i.setAction(ACTION_KEEPALIVE);
+		ctx.startService(i);
+	}
 
 	@Override
 	public void onCreate()

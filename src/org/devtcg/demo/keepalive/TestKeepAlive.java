@@ -26,22 +26,22 @@ public class TestKeepAlive extends Activity
 {
 	public static final String TAG = "TestKeepAlive";
 
-	private Button mStart;
-	private Button mStop;
-
-	private final OnClickListener mStartClick = new OnClickListener()
+	private final OnClickListener mClicked = new OnClickListener()
 	{
 		public void onClick(View v)
 		{
-			KeepAliveService.actionStart(TestKeepAlive.this);
-		}
-	};
-
-	private final OnClickListener mStopClick = new OnClickListener()
-	{
-		public void onClick(View v)
-		{
-			KeepAliveService.actionStop(TestKeepAlive.this);
+			switch (v.getId())
+			{
+			case R.id.start:
+				KeepAliveService.actionStart(TestKeepAlive.this);
+				break;
+			case R.id.stop:
+				KeepAliveService.actionStop(TestKeepAlive.this);
+				break;
+			case R.id.ping:
+				KeepAliveService.actionPing(TestKeepAlive.this);
+				break;
+			}
 		}
 	};
 
@@ -51,10 +51,8 @@ public class TestKeepAlive extends Activity
 		super.onCreate(icicle);
 		setContentView(R.layout.main);
 
-		mStart = (Button)findViewById(R.id.start);
-		mStart.setOnClickListener(mStartClick);
-
-		mStop = (Button)findViewById(R.id.stop);
-		mStop.setOnClickListener(mStopClick);
+		findViewById(R.id.start).setOnClickListener(mClicked);
+		findViewById(R.id.stop).setOnClickListener(mClicked);
+		findViewById(R.id.ping).setOnClickListener(mClicked);
 	}
 }
