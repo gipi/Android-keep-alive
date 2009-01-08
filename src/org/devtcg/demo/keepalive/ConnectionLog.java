@@ -1,3 +1,7 @@
+/*
+ * $Id$
+ */
+
 package org.devtcg.demo.keepalive;
 
 import java.io.BufferedWriter;
