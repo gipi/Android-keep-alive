@@ -48,8 +48,8 @@ public class KeepAliveService extends Service
 
 	private static final long KEEP_ALIVE_INTERVAL = 1000 * 60 * 28;
 
-	private static final long INITIAL_RETRY_INTERVAL = 1000 * 5;
-	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 60 * 2;
+	private static final long INITIAL_RETRY_INTERVAL = 1000 * 10;
+	private static final long MAXIMUM_RETRY_INTERVAL = 1000 * 60 * 30;
 
 	private SharedPreferences mPrefs;
 
@@ -257,7 +257,7 @@ public class KeepAliveService extends Service
 		long elapsed = now - startTime;
 
 		if (elapsed < interval)
-			interval = Math.min(interval * 10, MAXIMUM_RETRY_INTERVAL);
+			interval = Math.min(interval * 4, MAXIMUM_RETRY_INTERVAL);
 		else
 			interval = INITIAL_RETRY_INTERVAL;
 
