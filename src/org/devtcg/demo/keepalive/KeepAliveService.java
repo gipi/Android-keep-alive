@@ -385,13 +385,21 @@ public class KeepAliveService extends Service
 				 * plus an arbitrary timeout such as 2 minutes. */
 				//s.setSoTimeout((int)KEEP_ALIVE_INTERVAL + 120000);
 
-				log("Connection established to " + mHost + ":" + mPort);
-
+				log("Connection established to " + s.getInetAddress() +
+				  ":" + mPort);
+				
 				startKeepAlives();
 				showNotification();
 
 				InputStream in = s.getInputStream();
 				OutputStream out = s.getOutputStream();
+				
+				/* Note that T-Mobile appears to implement an opportunistic
+				 * connect algorithm where the connect call may succeed
+				 * even when the remote peer would reject the connection.
+				 * Shortly after an attempt to send data an exception
+				 * will occur indicating the connection was reset. */
+				out.write("Hello, world.\n".getBytes());
 
 				byte[] b = new byte[1024];
 				int n;
