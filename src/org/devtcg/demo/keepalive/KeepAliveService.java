@@ -153,6 +153,7 @@ public class KeepAliveService extends Service
 		mStarted = started;
 	}
 
+	//FIXME: deprecated
 	@Override
 	public void onStart(Intent intent, int startId)
 	{
