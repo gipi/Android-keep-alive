@@ -313,7 +313,7 @@ public class KeepAliveService extends Service
 		}
 	};
 	
-	private void showNotification()
+	private void showNotification(String msg)
 	{
 		Notification n = new Notification();
 		
@@ -325,9 +325,8 @@ public class KeepAliveService extends Service
 
 		PendingIntent pi = PendingIntent.getActivity(this, 0,
 		  new Intent(this, TestKeepAlive.class), 0);
-
 		n.setLatestEventInfo(this, "KeepAlive connected",
-		  "Connected to " + HOST + ":" + PORT, pi);
+		 msg == null ? "Connected to " + HOST + ":" + PORT : msg, pi);
 
 		mNotifMan.notify(NOTIF_CONNECTED, n);
 	}
@@ -390,7 +389,7 @@ public class KeepAliveService extends Service
 				  ":" + mPort);
 				
 				startKeepAlives();
-				showNotification();
+				showNotification(null);
 
 				InputStream in = s.getInputStream();
 				OutputStream out = s.getOutputStream();
@@ -405,8 +404,10 @@ public class KeepAliveService extends Service
 				byte[] b = new byte[1024];
 				int n;
 
-				while ((n = in.read(b)) >= 0)
+				while ((n = in.read(b)) >= 0) {
 					out.write(b, 0, n);
+					showNotification(new String(b));
+				}
 
 				if (mAbort == false)
 					log("Server closed connection unexpectedly.");
