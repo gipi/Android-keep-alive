@@ -26,6 +26,22 @@ import android.net.NetworkInfo;
 import android.os.IBinder;
 import android.util.Log;
 
+/**
+ * <p>
+ * This class can be used to create a service by which communicate with a server
+ * with a given interval.
+ * </p>
+ *
+ * <p>
+ * Can be used in the following way in order to start the service.
+ * </p>
+ * <pre>
+ * KeepAliveService.actionStart(activity);
+ * </pre>
+ *
+ *
+ *
+ */
 public class KeepAliveService extends Service
 {
 	public static final String TAG = "KeepAliveService";
