@@ -23,7 +23,7 @@ public class TestKeepAlive extends Activity
 			switch (v.getId())
 			{
 			case R.id.start:
-				KeepAliveService.actionStart(TestKeepAlive.this);
+				KeepAliveService.actionStart(TestKeepAlive.this, "remote.local", 5555, R.drawable.connected_notify);
 				break;
 			case R.id.stop:
 				KeepAliveService.actionStop(TestKeepAlive.this);

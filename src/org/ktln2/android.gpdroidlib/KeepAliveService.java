@@ -48,8 +48,8 @@ public class KeepAliveService extends Service
 {
 	public static final String TAG = "KeepAliveService";
 
-	private static final String HOST = "jasta.dyndns.org";
-	private static final int PORT = 50000;
+	private static String HOST;
+	private static int PORT;
 	private static int ICON;
 
 	private static final String ACTION_START =     "org.ktln2.android.gpdroidlib.START";
@@ -76,10 +76,27 @@ public class KeepAliveService extends Service
 	
 	private static final String PREF_STARTED = "isStarted";
 
-	public static void actionStart(Context ctx)
+	public static void setHost(String host) {
+		HOST = host;
+	}
+
+	public static void setPort(int port) {
+		PORT = port;
+	}
+
+	public static void setNotificationResource(int notificationResource) {
+		ICON = notificationResource;
+	}
+
+	public static void actionStart(Context ctx, String host, int port, int notificationResource)
 	{
 		Intent i = new Intent(ctx, KeepAliveService.class);
 		i.setAction(ACTION_START);
+
+		setHost(host);
+		setPort(port);
+		setNotificationResource(notificationResource);
+
 		ctx.startService(i);
 	}
 
