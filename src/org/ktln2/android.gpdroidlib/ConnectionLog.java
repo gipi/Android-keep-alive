@@ -2,7 +2,7 @@
  * $Id$
  */
 
-package org.devtcg.demo.keepalive;
+package org.ktln2.android.gpdroidlib;
 
 import java.io.BufferedWriter;
 import java.io.File;

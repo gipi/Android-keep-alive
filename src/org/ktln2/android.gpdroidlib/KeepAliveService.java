@@ -2,7 +2,7 @@
  * $Id$
  */
 
-package org.devtcg.demo.keepalive;
+package org.ktln2.android.gpdroidlib;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,6 +26,8 @@ import android.net.NetworkInfo;
 import android.os.IBinder;
 import android.util.Log;
 
+import org.devtcg.demo.keepalive.TestKeepAlive;
+
 /**
  * <p>
  * This class can be used to create a service by which communicate with a server
@@ -48,11 +50,12 @@ public class KeepAliveService extends Service
 
 	private static final String HOST = "jasta.dyndns.org";
 	private static final int PORT = 50000;
+	private static int ICON;
 
-	private static final String ACTION_START = "org.devtcg.demo.keepalive.START";
-	private static final String ACTION_STOP = "org.devtcg.demo.keepalive.STOP";
-	private static final String ACTION_KEEPALIVE = "org.devtcg.demo.keepalive.KEEP_ALIVE";
-	private static final String ACTION_RECONNECT = "org.devtcg.demo.keepalive.RECONNECT";
+	private static final String ACTION_START =     "org.ktln2.android.gpdroidlib.START";
+	private static final String ACTION_STOP =      "org.ktln2.android.gpdroidlib.STOP";
+	private static final String ACTION_KEEPALIVE = "org.ktln2.android.gpdroidlib.KEEP_ALIVE";
+	private static final String ACTION_RECONNECT = "org.ktln2.android.gpdroidlib.RECONNECT";
 	
 	private ConnectionLog mLog;
 
@@ -336,7 +339,7 @@ public class KeepAliveService extends Service
 		n.flags = Notification.FLAG_NO_CLEAR |
 		  Notification.FLAG_ONGOING_EVENT;
 
-		n.icon = R.drawable.connected_notify;
+		n.icon = ICON;
 		n.when = System.currentTimeMillis();
 
 		PendingIntent pi = PendingIntent.getActivity(this, 0,

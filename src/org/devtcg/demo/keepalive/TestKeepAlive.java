@@ -10,6 +10,8 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 
+import org.ktln2.android.gpdroidlib.KeepAliveService;
+
 public class TestKeepAlive extends Activity
 {
 	public static final String TAG = "TestKeepAlive";
