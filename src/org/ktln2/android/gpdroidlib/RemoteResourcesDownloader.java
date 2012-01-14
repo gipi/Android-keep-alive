@@ -81,7 +81,7 @@ public class RemoteResourcesDownloader {
 		}
 	}
 
-	public void notifyObserver(URL url) {
+	private void notifyObserver(URL url) {
 		List<RemoteResourcesObserver> observers = mObservers.get(url);
 
 		for (RemoteResourcesObserver o : observers) {
