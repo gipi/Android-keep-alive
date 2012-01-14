@@ -12,7 +12,7 @@ import java.io.File;
 
 /**
  * This class downloads a resource from remote server and then
- * notify some registered observers.
+ * notifies some registered observers.
  *
  * The resource is downloaded in the filesystem with the same name.
  *
